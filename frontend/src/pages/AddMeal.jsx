@@ -12,6 +12,226 @@ import {
   SparklesIcon,
 } from "@heroicons/react/24/outline";
 
+const NUTRITION_DB = {
+  AlooGobi: {
+    calories: 172,
+    protein: 4.3,
+    carbohydrates: 18.5,
+    fats: 10.2,
+    weight: 150,
+  },
+  AlooMasala: {
+    calories: 195,
+    protein: 3.8,
+    carbohydrates: 25.6,
+    fats: 9.5,
+    weight: 175,
+  },
+  Bhatura: {
+    calories: 330,
+    protein: 7.5,
+    carbohydrates: 52.0,
+    fats: 12.5,
+    weight: 100,
+  },
+  BhindiMasala: {
+    calories: 158,
+    protein: 3.2,
+    carbohydrates: 14.8,
+    fats: 11.0,
+    weight: 150,
+  },
+  Biryani: {
+    calories: 350,
+    protein: 12.0,
+    carbohydrates: 45.0,
+    fats: 12.0,
+    weight: 250,
+  },
+  Chai: {
+    calories: 85,
+    protein: 2.5,
+    carbohydrates: 10.5,
+    fats: 3.8,
+    weight: 150,
+  },
+  Chole: {
+    calories: 210,
+    protein: 9.0,
+    carbohydrates: 30.5,
+    fats: 7.0,
+    weight: 175,
+  },
+  CoconutChutney: {
+    calories: 175,
+    protein: 2.0,
+    carbohydrates: 8.5,
+    fats: 16.0,
+    weight: 50,
+  },
+  Dal: {
+    calories: 116,
+    protein: 9.0,
+    carbohydrates: 20.0,
+    fats: 0.4,
+    weight: 175,
+  },
+  Dosa: {
+    calories: 133,
+    protein: 2.6,
+    carbohydrates: 25.0,
+    fats: 1.9,
+    weight: 90,
+  },
+  DumAloo: {
+    calories: 210,
+    protein: 4.0,
+    carbohydrates: 28.0,
+    fats: 10.0,
+    weight: 180,
+  },
+  FishCurry: {
+    calories: 195,
+    protein: 20.0,
+    carbohydrates: 12.0,
+    fats: 8.5,
+    weight: 200,
+  },
+  Ghevar: {
+    calories: 310,
+    protein: 5.0,
+    carbohydrates: 45.0,
+    fats: 12.0,
+    weight: 100,
+  },
+  GreenChutney: {
+    calories: 45,
+    protein: 2.0,
+    carbohydrates: 6.5,
+    fats: 1.5,
+    weight: 30,
+  },
+  GulabJamun: {
+    calories: 320,
+    protein: 4.0,
+    carbohydrates: 45.0,
+    fats: 14.0,
+    weight: 100,
+  },
+  Idli: {
+    calories: 39,
+    protein: 2.0,
+    carbohydrates: 7.0,
+    fats: 0.2,
+    weight: 40,
+  },
+  Jalebi: {
+    calories: 328,
+    protein: 3.0,
+    carbohydrates: 55.0,
+    fats: 12.0,
+    weight: 100,
+  },
+  Kebab: {
+    calories: 285,
+    protein: 22.0,
+    carbohydrates: 8.0,
+    fats: 18.5,
+    weight: 150,
+  },
+  Kheer: {
+    calories: 255,
+    protein: 7.0,
+    carbohydrates: 40.0,
+    fats: 8.0,
+    weight: 200,
+  },
+  Kulfi: {
+    calories: 220,
+    protein: 5.0,
+    carbohydrates: 25.0,
+    fats: 12.0,
+    weight: 90,
+  },
+  Lassi: {
+    calories: 150,
+    protein: 6.0,
+    carbohydrates: 28.0,
+    fats: 2.0,
+    weight: 250,
+  },
+  MuttonCurry: {
+    calories: 240,
+    protein: 25.0,
+    carbohydrates: 12.0,
+    fats: 12.0,
+    weight: 200,
+  },
+  OnionPakoda: {
+    calories: 230,
+    protein: 6.0,
+    carbohydrates: 22.0,
+    fats: 14.0,
+    weight: 100,
+  },
+  PalakPaneer: {
+    calories: 275,
+    protein: 16.0,
+    carbohydrates: 12.5,
+    fats: 18.0,
+    weight: 175,
+  },
+  Poha: {
+    calories: 180,
+    protein: 3.5,
+    carbohydrates: 35.0,
+    fats: 3.0,
+    weight: 150,
+  },
+  RajmaCurry: {
+    calories: 195,
+    protein: 10.0,
+    carbohydrates: 28.0,
+    fats: 5.0,
+    weight: 175,
+  },
+  RasMalai: {
+    calories: 230,
+    protein: 8.0,
+    carbohydrates: 28.0,
+    fats: 10.0,
+    weight: 120,
+  },
+  Samosa: {
+    calories: 262,
+    protein: 4.0,
+    carbohydrates: 30.0,
+    fats: 13.0,
+    weight: 80,
+  },
+  ShahiPaneer: {
+    calories: 310,
+    protein: 17.0,
+    carbohydrates: 15.0,
+    fats: 22.0,
+    weight: 175,
+  },
+  WhiteRice: {
+    calories: 130,
+    protein: 2.7,
+    carbohydrates: 28.0,
+    fats: 0.3,
+    weight: 150,
+  },
+};
+
+const getNutritionInfo = (foodItem) => {
+  const caseInsensitiveDb = Object.fromEntries(
+    Object.entries(NUTRITION_DB).map(([k, v]) => [k.toLowerCase(), v])
+  );
+  return caseInsensitiveDb[foodItem.toLowerCase()];
+};
+
 export default function AddMeal() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -152,7 +372,7 @@ export default function AddMeal() {
           codeReader.reset();
         }
       } else {
-        // Handle other modes (photo, recognition) as before
+        // Handle food recognition
         const compressedImage = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => {
@@ -181,6 +401,7 @@ export default function AddMeal() {
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
 
+              // Convert to base64 with JPEG format
               resolve(canvas.toDataURL("image/jpeg", 0.7));
             };
             img.src = reader.result;
@@ -188,23 +409,109 @@ export default function AddMeal() {
           reader.readAsDataURL(imageFile);
         });
 
-        // Process other modes using Supabase function
-        const imageData = compressedImage.split(",")[1];
-        const { data, error } = await supabase.functions.invoke(
-          "food-recognition",
+        // Call Roboflow API with base64 image data
+        const base64Data = compressedImage.split(",")[1];
+        const response = await fetch(
+          "https://serverless.roboflow.com/infer/workflows/myworkspace-yqb7k/custom-workflow-2",
           {
-            body: { image: imageData },
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              api_key: "QsQI7bVRFwg707v9MsQJ",
+              inputs: {
+                image: { type: "base64", value: base64Data },
+              },
+            }),
           }
         );
 
-        if (error) throw error;
+        const result = await response.json();
+        console.log("Roboflow result:", result);
 
-        if (data?.predictions) {
-          setScanResult({
-            type: "recognition",
-            predictions: data.predictions,
-          });
+        if (result.error) {
+          throw new Error(
+            `Recognition failed: ${result.message || "Unknown error"}`
+          );
         }
+
+        // Get the predicted food items from the result
+        const predictions = result.outputs?.[0]?.predictions?.predictions;
+        if (!predictions || predictions.length === 0) {
+          throw new Error("No food items recognized in the image");
+        }
+
+        // Sort predictions by confidence and filter out low confidence predictions
+        const validPredictions = predictions
+          .filter((pred) => pred.confidence > 0.5) // Only keep predictions with >50% confidence
+          .sort((a, b) => b.confidence - a.confidence);
+
+        if (validPredictions.length === 0) {
+          throw new Error(
+            "No food items recognized with sufficient confidence"
+          );
+        }
+
+        // Calculate combined nutritional values
+        const recognizedItems = [];
+        let totalNutrients = {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fats: 0,
+        };
+
+        for (const prediction of validPredictions) {
+          const foodItem = prediction.class;
+          const nutritionInfo = getNutritionInfo(foodItem);
+
+          if (nutritionInfo) {
+            recognizedItems.push({
+              name: foodItem,
+              confidence: Math.round(prediction.confidence * 100),
+              nutrients: {
+                calories: Math.round(nutritionInfo.calories),
+                protein: Math.round(nutritionInfo.protein),
+                carbs: Math.round(nutritionInfo.carbohydrates),
+                fats: Math.round(nutritionInfo.fats),
+                weight: nutritionInfo.weight,
+              },
+            });
+
+            totalNutrients.calories += Math.round(nutritionInfo.calories);
+            totalNutrients.protein += Math.round(nutritionInfo.protein);
+            totalNutrients.carbs += Math.round(nutritionInfo.carbohydrates);
+            totalNutrients.fats += Math.round(nutritionInfo.fats);
+          }
+        }
+
+        if (recognizedItems.length === 0) {
+          throw new Error(
+            "Could not find nutritional information for any recognized items"
+          );
+        }
+
+        setScanResult({
+          type: "recognition",
+          items: recognizedItems,
+          totalNutrients: totalNutrients,
+        });
+
+        // Auto-fill the form with combined nutritional data
+        setFormData((prev) => ({
+          ...prev,
+          calories: totalNutrients.calories,
+          protein: totalNutrients.protein,
+          carbs: totalNutrients.carbs,
+          fats: totalNutrients.fats,
+          notes: `Recognized foods:\n${recognizedItems
+            .map(
+              (item) =>
+                `- ${item.name} (${item.confidence}% confidence, ${item.nutrients.weight}g serving)`
+            )
+            .join("\n")}`,
+        }));
       }
     } catch (err) {
       console.error("Processing error:", err);
@@ -515,17 +822,41 @@ export default function AddMeal() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {scanResult.predictions.map((pred, idx) => (
-                        <div key={idx} className="flex justify-between">
-                          <span className="text-sm text-gray-600">
-                            {pred.class}
-                          </span>
-                          <span className="text-sm text-gray-900">
-                            {(pred.confidence * 100).toFixed(1)}%
-                          </span>
+                    <div>
+                      <div className="space-y-3">
+                        {scanResult.items.map((item, index) => (
+                          <div
+                            key={index}
+                            className="border-b border-gray-200 pb-2 last:border-b-0"
+                          >
+                            <p className="text-sm text-gray-600">
+                              {item.name}{" "}
+                              <span className="text-indigo-600 font-medium">
+                                ({item.confidence}% confidence)
+                              </span>
+                            </p>
+                            <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                              <p>Calories: {item.nutrients.calories}kcal</p>
+                              <p>Protein: {item.nutrients.protein}g</p>
+                              <p>Carbs: {item.nutrients.carbs}g</p>
+                              <p>Fats: {item.nutrients.fats}g</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <p className="text-sm font-medium text-gray-900">
+                          Total Nutritional Values:
+                        </p>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                          <p>
+                            Calories: {scanResult.totalNutrients.calories}kcal
+                          </p>
+                          <p>Protein: {scanResult.totalNutrients.protein}g</p>
+                          <p>Carbs: {scanResult.totalNutrients.carbs}g</p>
+                          <p>Fats: {scanResult.totalNutrients.fats}g</p>
                         </div>
-                      ))}
+                      </div>
                     </div>
                   )}
                 </div>
