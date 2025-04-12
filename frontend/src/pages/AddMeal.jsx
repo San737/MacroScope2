@@ -10,6 +10,7 @@ import {
   QrCodeIcon,
   SparklesIcon,
   PencilSquareIcon,
+  BeakerIcon,
 } from "@heroicons/react/24/outline";
 
 const NUTRITION_DB = {
@@ -305,7 +306,157 @@ export default function AddMeal() {
     setError(null);
 
     try {
-      if (mode === "barcode") {
+      if (mode === "advanced") {
+        // Handle advanced recognition with Gemini
+        const compressedImage = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              const MAX_WIDTH = 800;
+              const MAX_HEIGHT = 800;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, width, height);
+
+              resolve(canvas.toDataURL("image/jpeg", 0.7));
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(imageFile);
+        });
+
+        // Call Gemini API directly
+        const base64Data = compressedImage.split(",")[1];
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${
+              import.meta.env.VITE_GEMINI_API_KEY
+            }`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      {
+                        text: `Analyze this food image carefully and identify all visible food items.
+                        For each item:
+                        1. Identify the food name accurately
+                        2. Estimate the portion size based on visual cues (use standard units like grams, cups, pieces)
+                        3. Calculate the approximate nutritional information based on the identified portion
+
+                        Return structured data in this exact JSON format:
+                        {
+                          "items": [
+                            {
+                              "name": "food name",
+                              "quantity": "estimated quantity with unit",
+                              "calories": numeric value,
+                              "protein": numeric value in grams,
+                              "carbs": numeric value in grams,
+                              "fat": numeric value in grams
+                            }
+                          ],
+                          "total": {
+                            "calories": sum of all item calories,
+                            "protein": sum of all protein in grams,
+                            "carbs": sum of all carbs in grams,
+                            "fat": sum of all fat in grams
+                          },
+                          "summary": "brief health assessment and nutritional balance of this meal"
+                        }`,
+                      },
+                      {
+                        inlineData: {
+                          mimeType: "image/jpeg",
+                          data: base64Data,
+                        },
+                      },
+                    ],
+                  },
+                ],
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+              `Gemini API error: ${response.statusText}. ${
+                errorData.error?.message || ""
+              }`
+            );
+          }
+
+          const responseData = await response.json();
+          console.log("Gemini raw response:", responseData);
+
+          // Extract JSON from the text response
+          const textResponse = responseData.candidates[0].content.parts[0].text;
+          const jsonMatch = textResponse.match(/{[\s\S]*}/);
+
+          if (!jsonMatch) {
+            throw new Error(
+              "Failed to extract structured data from AI response"
+            );
+          }
+
+          const result = JSON.parse(jsonMatch[0]);
+          console.log("Parsed Gemini result:", result);
+
+          if (!result.items || result.items.length === 0) {
+            throw new Error("No food items detected in the image");
+          }
+
+          // Set scan result with Gemini data
+          setScanResult({
+            type: "advanced",
+            items: result.items,
+            totalNutrients: result.total,
+            summary: result.summary,
+          });
+
+          // Auto-fill the form with total nutritional data
+          setFormData((prev) => ({
+            ...prev,
+            calories: Math.round(result.total.calories),
+            protein: Math.round(result.total.protein),
+            carbs: Math.round(result.total.carbs),
+            fats: Math.round(result.total.fat),
+            notes: `AI Analysis Summary:\n${
+              result.summary
+            }\n\nDetected Items:\n${result.items
+              .map((item) => `- ${item.name} (${item.quantity})`)
+              .join("\n")}`,
+          }));
+        } catch (error) {
+          console.error("Gemini API error:", error);
+          throw new Error(
+            `Failed to analyze image with Gemini: ${error.message}`
+          );
+        }
+      } else if (mode === "barcode") {
         // Create an image element for barcode scanning
         const img = new Image();
         img.src = URL.createObjectURL(imageFile);
@@ -807,6 +958,8 @@ export default function AddMeal() {
                   <h3 className="text-sm font-medium text-gray-900 mb-2">
                     {scanResult.type === "barcode"
                       ? "Product Information"
+                      : scanResult.type === "advanced"
+                      ? "AI Analysis Results"
                       : "Recognition Results"}
                   </h3>
                   {scanResult.type === "barcode" ? (
@@ -819,6 +972,57 @@ export default function AddMeal() {
                         <p>Protein: {scanResult.nutrients.protein}g</p>
                         <p>Carbs: {scanResult.nutrients.carbs}g</p>
                         <p>Fats: {scanResult.nutrients.fats}g</p>
+                      </div>
+                    </div>
+                  ) : scanResult.type === "advanced" ? (
+                    <div>
+                      <div className="space-y-3">
+                        {scanResult.items.map((item, index) => (
+                          <div
+                            key={index}
+                            className="border-b border-gray-200 pb-2 last:border-b-0"
+                          >
+                            <p className="text-sm text-gray-600">
+                              {item.name}{" "}
+                              <span className="text-indigo-600 font-medium">
+                                ({item.quantity})
+                              </span>
+                            </p>
+                            <div className="mt-1 grid grid-cols-4 gap-2 text-xs text-gray-500">
+                              <p>Calories: {Math.round(item.calories)}kcal</p>
+                              <p>Protein: {Math.round(item.protein)}g</p>
+                              <p>Carbs: {Math.round(item.carbs)}g</p>
+                              <p>Fat: {Math.round(item.fat)}g</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <p className="text-sm font-medium text-gray-900">
+                          Total Nutritional Values:
+                        </p>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                          <p>
+                            Calories:{" "}
+                            {Math.round(scanResult.totalNutrients.calories)}kcal
+                          </p>
+                          <p>
+                            Protein:{" "}
+                            {Math.round(scanResult.totalNutrients.protein)}g
+                          </p>
+                          <p>
+                            Carbs: {Math.round(scanResult.totalNutrients.carbs)}
+                            g
+                          </p>
+                          <p>
+                            Fat: {Math.round(scanResult.totalNutrients.fat)}g
+                          </p>
+                        </div>
+                        {scanResult.summary && (
+                          <p className="mt-3 text-xs text-gray-600 italic">
+                            {scanResult.summary}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -862,17 +1066,17 @@ export default function AddMeal() {
                 </div>
               )}
 
-              <div className="flex space-x-4">
+              <div className="flex space-x-2 sm:space-x-4">
                 <button
                   type="button"
                   onClick={() => {
                     setScanMode("photo");
                     startCamera();
                   }}
-                  className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  <PencilSquareIcon className="h-5 w-5 mr-2" />
-                  Add Manually
+                  <PencilSquareIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Add</span> Manually
                 </button>
                 <button
                   type="button"
@@ -880,10 +1084,10 @@ export default function AddMeal() {
                     setScanMode("barcode");
                     startCamera();
                   }}
-                  className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  <QrCodeIcon className="h-5 w-5 mr-2" />
-                  Scan Barcode
+                  <QrCodeIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Scan</span> Barcode
                 </button>
                 <button
                   type="button"
@@ -891,10 +1095,21 @@ export default function AddMeal() {
                     setScanMode("recognition");
                     startCamera();
                   }}
-                  className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  <SparklesIcon className="h-5 w-5 mr-2" />
-                  Recognize
+                  <SparklesIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Quick</span> Scan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanMode("advanced");
+                    startCamera();
+                  }}
+                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <BeakerIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">AI</span> Analysis
                 </button>
               </div>
             </div>

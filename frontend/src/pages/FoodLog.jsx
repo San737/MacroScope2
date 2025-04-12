@@ -174,61 +174,65 @@ export default function FoodLog() {
                 key={meal.id}
                 className="px-3 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition-colors duration-150"
               >
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-3 sm:space-y-0">
-                  <div className="flex">
-                    {meal.image_url && (
-                      <div className="flex-shrink-0 mr-3 sm:mr-4">
-                        <img
-                          src={meal.image_url}
-                          alt={`${meal.meal_type} meal`}
-                          className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src =
-                              "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image";
-                          }}
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <div className="flex items-center">
-                        <span className="text-lg sm:text-xl mr-2">
-                          {getMealTypeIcon(meal.meal_type)}
-                        </span>
-                        <h3 className="text-base sm:text-lg font-medium text-gray-900 capitalize">
-                          {meal.meal_type}
-                        </h3>
-                      </div>
-                      {meal.notes && (
-                        <p className="mt-1 text-xs sm:text-sm text-gray-500 line-clamp-2 sm:line-clamp-none">
-                          {meal.notes}
-                        </p>
+                <div className="flex flex-col space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
+                    <div className="flex mb-3 sm:mb-0">
+                      {meal.image_url && (
+                        <div className="flex-shrink-0 mr-3 sm:mr-4">
+                          <img
+                            src={meal.image_url}
+                            alt={`${meal.meal_type} meal`}
+                            className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src =
+                                "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image";
+                            }}
+                          />
+                        </div>
                       )}
+                      <div>
+                        <div className="flex items-center">
+                          <span className="text-lg sm:text-xl mr-2">
+                            {getMealTypeIcon(meal.meal_type)}
+                          </span>
+                          <h3 className="text-base sm:text-lg font-medium text-gray-900 capitalize">
+                            {meal.meal_type}
+                          </h3>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full sm:w-auto">
+                      <MacroDisplay
+                        label="Calories"
+                        value={meal.calories}
+                        color="text-indigo-600"
+                        unit=""
+                      />
+                      <MacroDisplay
+                        label="Protein"
+                        value={meal.protein}
+                        color="text-green-600"
+                      />
+                      <MacroDisplay
+                        label="Carbs"
+                        value={meal.carbs}
+                        color="text-yellow-600"
+                      />
+                      <MacroDisplay
+                        label="Fats"
+                        value={meal.fats}
+                        color="text-orange-600"
+                      />
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full sm:w-auto">
-                    <MacroDisplay
-                      label="Calories"
-                      value={meal.calories}
-                      color="text-indigo-600"
-                      unit=""
-                    />
-                    <MacroDisplay
-                      label="Protein"
-                      value={meal.protein}
-                      color="text-green-600"
-                    />
-                    <MacroDisplay
-                      label="Carbs"
-                      value={meal.carbs}
-                      color="text-yellow-600"
-                    />
-                    <MacroDisplay
-                      label="Fats"
-                      value={meal.fats}
-                      color="text-orange-600"
-                    />
-                  </div>
+                  {meal.notes && (
+                    <div className="mt-1 sm:pl-20">
+                      <p className="text-xs sm:text-sm text-gray-500 break-words">
+                        {meal.notes}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
