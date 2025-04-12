@@ -123,10 +123,10 @@ export default function AddMeal() {
             const nutritionInfo = {
               product_name: product.product_name || "Unknown Product",
               nutrients: {
-                calories: nutriments["energy-kcal_100g"] || 0,
-                protein: nutriments.proteins_100g || 0,
-                carbs: nutriments.carbohydrates_100g || 0,
-                fats: nutriments.fat_100g || 0,
+                calories: Math.round(nutriments["energy-kcal_100g"]) || 0,
+                protein: Math.round(nutriments.proteins_100g) || 0,
+                carbs: Math.round(nutriments.carbohydrates_100g) || 0,
+                fats: Math.round(nutriments.fat_100g) || 0,
               },
             };
 
@@ -143,6 +143,7 @@ export default function AddMeal() {
               protein: nutritionInfo.nutrients.protein || "",
               carbs: nutritionInfo.nutrients.carbs || "",
               fats: nutritionInfo.nutrients.fats || "",
+              notes: `Product: ${nutritionInfo.product_name}`,
             }));
           } else {
             throw new Error("Product not found in database");
@@ -328,10 +329,10 @@ export default function AddMeal() {
         {
           user_id: user.id,
           meal_type: formData.mealType,
-          calories: Number(formData.calories),
-          protein: Number(formData.protein),
-          carbs: Number(formData.carbs),
-          fats: Number(formData.fats),
+          calories: Math.round(Number(formData.calories)),
+          protein: Math.round(Number(formData.protein)),
+          carbs: Math.round(Number(formData.carbs)),
+          fats: Math.round(Number(formData.fats)),
           notes: formData.notes,
           image_url: imageUrl,
         },
