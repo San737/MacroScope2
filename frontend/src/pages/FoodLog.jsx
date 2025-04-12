@@ -91,6 +91,27 @@ export default function FoodLog() {
     }
   };
 
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+
+    if (imageUrl.startsWith("data:")) {
+      return imageUrl;
+    }
+
+    if (imageUrl.startsWith("meal-images/")) {
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("meal-images").getPublicUrl(imageUrl);
+      return publicUrl;
+    }
+
+    if (imageUrl.startsWith("http")) {
+      return imageUrl;
+    }
+
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -180,10 +201,15 @@ export default function FoodLog() {
                       {meal.image_url && (
                         <div className="flex-shrink-0 mr-3 sm:mr-4">
                           <img
-                            src={meal.image_url}
+                            src={
+                              getImageUrl(meal.image_url) ||
+                              "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image"
+                            }
                             alt={`${meal.meal_type} meal`}
-                            className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm"
+                            className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm bg-gray-100"
+                            loading="lazy"
                             onError={(e) => {
+                              console.error("Image load error:", e);
                               e.target.onerror = null;
                               e.target.src =
                                 "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image";
@@ -191,7 +217,7 @@ export default function FoodLog() {
                           />
                         </div>
                       )}
-                      <div>
+                      <div className="flex-grow">
                         <div className="flex items-center">
                           <span className="text-lg sm:text-xl mr-2">
                             {getMealTypeIcon(meal.meal_type)}

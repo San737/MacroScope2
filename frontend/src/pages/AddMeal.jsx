@@ -306,6 +306,11 @@ export default function AddMeal() {
     setError(null);
 
     try {
+      // Create temporary URL for the image
+      const imageUrl = URL.createObjectURL(imageFile);
+      setImagePreview(imageUrl);
+      setImage(imageFile);
+
       if (mode === "advanced") {
         // Handle advanced recognition with Gemini
         const compressedImage = await new Promise((resolve) => {
@@ -761,26 +766,15 @@ export default function AddMeal() {
     setError(null);
 
     try {
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
-
       let imageUrl = null;
 
       if (image) {
-        const fileExt = image.name.split(".").pop();
-        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from("meal-images")
-          .upload(fileName, image);
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("meal-images").getPublicUrl(fileName);
-
-        imageUrl = publicUrl;
+        // Convert image to base64 for storage in the database
+        const reader = new FileReader();
+        imageUrl = await new Promise((resolve) => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(image);
+        });
       }
 
       const { error: insertError } = await supabase.from("meals").insert([
@@ -792,20 +786,50 @@ export default function AddMeal() {
           carbs: Math.round(Number(formData.carbs)),
           fats: Math.round(Number(formData.fats)),
           notes: formData.notes,
-          image_url: imageUrl,
+          image_url: imageUrl, // Store base64 image directly in the database
         },
       ]);
 
       if (insertError) throw insertError;
 
+      // Clean up the temporary object URL
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+
       navigate("/food-log");
     } catch (error) {
-      console.error("Error saving meal:", error);
+      console.error("Error adding meal:", error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Add new function to handle file selection
+  const handleFileSelect = async (mode) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept =
+      mode === "barcode" ? "image/*" : "image/jpeg,image/png,image/webp";
+    input.multiple = false;
+    input.onchange = async (e) => {
+      if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        await processImage(file, mode);
+      }
+    };
+    input.click();
+  };
+
+  // Clean up object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -1078,39 +1102,69 @@ export default function AddMeal() {
                   <PencilSquareIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Add</span> Manually
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScanMode("barcode");
-                    startCamera();
-                  }}
-                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <QrCodeIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">Scan</span> Barcode
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScanMode("recognition");
-                    startCamera();
-                  }}
-                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <SparklesIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">Quick</span> Scan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScanMode("advanced");
-                    startCamera();
-                  }}
-                  className="flex-1 flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <BeakerIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">AI</span> Analysis
-                </button>
+
+                <div className="flex-1 flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScanMode("barcode");
+                      startCamera();
+                    }}
+                    className="w-full flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-t-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <QrCodeIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Scan</span> Barcode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFileSelect("barcode")}
+                    className="w-full flex items-center justify-center px-2 sm:px-4 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-b-md text-gray-600 bg-gray-50 hover:bg-gray-100"
+                  >
+                    Upload Barcode
+                  </button>
+                </div>
+
+                <div className="flex-1 flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScanMode("recognition");
+                      startCamera();
+                    }}
+                    className="w-full flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-t-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <SparklesIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Quick</span> Scan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFileSelect("recognition")}
+                    className="w-full flex items-center justify-center px-2 sm:px-4 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-b-md text-gray-600 bg-gray-50 hover:bg-gray-100"
+                  >
+                    Upload Photo
+                  </button>
+                </div>
+
+                <div className="flex-1 flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScanMode("advanced");
+                      startCamera();
+                    }}
+                    className="w-full flex items-center justify-center px-2 sm:px-4 py-2 border border-gray-300 shadow-sm text-xs sm:text-sm font-medium rounded-t-md text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    <BeakerIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">AI</span> Analysis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFileSelect("advanced")}
+                    className="w-full flex items-center justify-center px-2 sm:px-4 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-b-md text-gray-600 bg-gray-50 hover:bg-gray-100"
+                  >
+                    Upload Photo
+                  </button>
+                </div>
               </div>
             </div>
           )}
