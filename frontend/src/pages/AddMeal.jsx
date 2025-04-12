@@ -3,7 +3,11 @@ import { useDropzone } from "react-dropzone";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { CameraIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  CameraIcon,
+  XMarkIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 
 export default function AddMeal() {
   const { user } = useAuth();
@@ -25,6 +29,7 @@ export default function AddMeal() {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [cameraError, setCameraError] = useState(null);
+  const [facingMode, setFacingMode] = useState("environment");
 
   const { getRootProps, getInputProps } = useDropzone({
     accept: {
@@ -46,7 +51,11 @@ export default function AddMeal() {
       try {
         console.log("Requesting camera access...");
         stream = await navigator.mediaDevices.getUserMedia({
-          video: true, // Simplified constraints
+          video: {
+            facingMode: facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         });
         console.log("Camera access granted, setting up video stream...");
@@ -76,7 +85,7 @@ export default function AddMeal() {
         });
       }
     };
-  }, [showCamera]);
+  }, [showCamera, facingMode]);
 
   const startCamera = async () => {
     try {
@@ -182,6 +191,18 @@ export default function AddMeal() {
     }
   };
 
+  const switchCamera = async () => {
+    if (streamRef.current) {
+      // Stop current stream
+      streamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    setIsCameraInitializing(true);
+    // Toggle facing mode
+    setFacingMode((current) =>
+      current === "environment" ? "user" : "environment"
+    );
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white shadow rounded-lg p-6">
@@ -233,7 +254,20 @@ export default function AddMeal() {
                 playsInline
                 muted
                 className="w-full h-64 object-cover rounded-lg"
+                style={{
+                  transform: facingMode === "user" ? "scaleX(-1)" : "none",
+                }}
               />
+              <div className="absolute top-4 right-4 z-20">
+                <button
+                  type="button"
+                  onClick={switchCamera}
+                  className="bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75"
+                  disabled={isCameraInitializing}
+                >
+                  <ArrowPathIcon className="h-5 w-5" />
+                </button>
+              </div>
               <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4 z-20">
                 <button
                   type="button"
