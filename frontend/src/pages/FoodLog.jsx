@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import PropTypes from "prop-types";
+import { TrashIcon } from "@heroicons/react/24/outline";
 
 const MacroDisplay = ({ label, value, color, unit = "g" }) => (
   <div className="flex flex-col items-center text-center">
@@ -30,6 +31,7 @@ export default function FoodLog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mealsByDay, setMealsByDay] = useState({});
+  const [deletingMealId, setDeletingMealId] = useState(null);
 
   useEffect(() => {
     fetchMeals();
@@ -88,6 +90,54 @@ export default function FoodLog() {
         return "🍎";
       default:
         return "🍽️";
+    }
+  };
+
+  const deleteMeal = async (mealId) => {
+    try {
+      setDeletingMealId(mealId);
+      const { error } = await supabase
+        .from("meals")
+        .delete()
+        .eq("id", mealId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Update the UI by removing the deleted meal
+      setMealsByDay((prevMealsByDay) => {
+        const newMealsByDay = { ...prevMealsByDay };
+
+        // Find and remove the meal from the appropriate day
+        Object.keys(newMealsByDay).forEach((date) => {
+          const dayData = newMealsByDay[date];
+          const mealIndex = dayData.meals.findIndex((m) => m.id === mealId);
+
+          if (mealIndex !== -1) {
+            // Remove the meal
+            const deletedMeal = dayData.meals[mealIndex];
+            dayData.meals = dayData.meals.filter((m) => m.id !== mealId);
+
+            // Update the totals
+            dayData.totals.calories -= deletedMeal.calories;
+            dayData.totals.protein -= deletedMeal.protein;
+            dayData.totals.carbs -= deletedMeal.carbs;
+            dayData.totals.fats -= deletedMeal.fats;
+
+            // If no meals left for this day, remove the day
+            if (dayData.meals.length === 0) {
+              delete newMealsByDay[date];
+            }
+          }
+        });
+
+        return newMealsByDay;
+      });
+    } catch (error) {
+      console.error("Error deleting meal:", error);
+      setError(error.message);
+    } finally {
+      setDeletingMealId(null);
     }
   };
 
@@ -197,60 +247,77 @@ export default function FoodLog() {
               >
                 <div className="flex flex-col space-y-3">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
-                    <div className="flex mb-3 sm:mb-0">
-                      {meal.image_url && (
-                        <div className="flex-shrink-0 mr-3 sm:mr-4">
-                          <img
-                            src={
-                              getImageUrl(meal.image_url) ||
-                              "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image"
-                            }
-                            alt={`${meal.meal_type} meal`}
-                            className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm bg-gray-100"
-                            loading="lazy"
-                            onError={(e) => {
-                              console.error("Image load error:", e);
-                              e.target.onerror = null;
-                              e.target.src =
-                                "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image";
-                            }}
-                          />
-                        </div>
-                      )}
-                      <div className="flex-grow">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex mb-3 sm:mb-0">
+                        {meal.image_url && (
+                          <div className="flex-shrink-0 mr-3">
+                            <img
+                              src={
+                                getImageUrl(meal.image_url) ||
+                                "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image"
+                              }
+                              alt={`${meal.name}`}
+                              className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm bg-gray-100"
+                              loading="lazy"
+                              onError={(e) => {
+                                console.error("Image load error:", e);
+                                e.target.onerror = null;
+                                e.target.src =
+                                  "https://placehold.co/96x96/f3f4f6/94a3b8?text=No+Image";
+                              }}
+                            />
+                          </div>
+                        )}
                         <div className="flex items-center">
-                          <span className="text-lg sm:text-xl mr-2">
+                          <span className="text-xl mr-2">
                             {getMealTypeIcon(meal.meal_type)}
                           </span>
-                          <h3 className="text-base sm:text-lg font-medium text-gray-900 capitalize">
-                            {meal.meal_type}
-                          </h3>
+                          <div>
+                            <h3 className="text-base sm:text-lg font-medium text-gray-900">
+                              {meal.name}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {format(parseISO(meal.created_at), "h:mm a")}
+                            </p>
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() => deleteMeal(meal.id)}
+                        disabled={deletingMealId === meal.id}
+                        className="text-gray-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-full hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                        title="Delete meal"
+                      >
+                        {deletingMealId === meal.id ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-red-500" />
+                        ) : (
+                          <TrashIcon className="h-5 w-5" />
+                        )}
+                      </button>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full sm:w-auto">
-                      <MacroDisplay
-                        label="Calories"
-                        value={meal.calories}
-                        color="text-indigo-600"
-                        unit=""
-                      />
-                      <MacroDisplay
-                        label="Protein"
-                        value={meal.protein}
-                        color="text-green-600"
-                      />
-                      <MacroDisplay
-                        label="Carbs"
-                        value={meal.carbs}
-                        color="text-yellow-600"
-                      />
-                      <MacroDisplay
-                        label="Fats"
-                        value={meal.fats}
-                        color="text-orange-600"
-                      />
-                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full sm:w-auto">
+                    <MacroDisplay
+                      label="Calories"
+                      value={meal.calories}
+                      color="text-indigo-600"
+                      unit=""
+                    />
+                    <MacroDisplay
+                      label="Protein"
+                      value={meal.protein}
+                      color="text-green-600"
+                    />
+                    <MacroDisplay
+                      label="Carbs"
+                      value={meal.carbs}
+                      color="text-yellow-600"
+                    />
+                    <MacroDisplay
+                      label="Fats"
+                      value={meal.fats}
+                      color="text-orange-600"
+                    />
                   </div>
                   {meal.notes && (
                     <div className="mt-1 sm:pl-20">
