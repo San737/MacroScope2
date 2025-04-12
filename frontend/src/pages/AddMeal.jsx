@@ -3,10 +3,13 @@ import { useDropzone } from "react-dropzone";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { BrowserMultiFormatReader } from "@zxing/library";
 import {
   CameraIcon,
   XMarkIcon,
   ArrowPathIcon,
+  QrCodeIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 
 export default function AddMeal() {
@@ -15,9 +18,12 @@ export default function AddMeal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
-  const [isCameraInitializing, setIsCameraInitializing] = useState(false);
+  const [scanMode, setScanMode] = useState("photo"); // "photo", "barcode", or "recognition"
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const [facingMode, setFacingMode] = useState("environment");
   const [formData, setFormData] = useState({
     mealType: "breakfast",
     calories: "",
@@ -28,20 +34,6 @@ export default function AddMeal() {
   });
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [cameraError, setCameraError] = useState(null);
-  const [facingMode, setFacingMode] = useState("environment");
-
-  const { getRootProps, getInputProps } = useDropzone({
-    accept: {
-      "image/*": [".jpeg", ".jpg", ".png"],
-    },
-    maxFiles: 1,
-    onDrop: (acceptedFiles) => {
-      const file = acceptedFiles[0];
-      setImage(file);
-      setImagePreview(URL.createObjectURL(file));
-    },
-  });
 
   useEffect(() => {
     if (!showCamera) return;
@@ -67,10 +59,10 @@ export default function AddMeal() {
         }
       } catch (err) {
         console.error("Camera access error:", err);
-        setCameraError(err.message);
+        setError("Could not access camera. Please check permissions.");
         setShowCamera(false);
       } finally {
-        setIsCameraInitializing(false);
+        setIsProcessing(false);
       }
     }
 
@@ -87,22 +79,164 @@ export default function AddMeal() {
     };
   }, [showCamera, facingMode]);
 
+  const processImage = async (imageFile, mode) => {
+    setIsProcessing(true);
+    setScanResult(null);
+    setError(null);
+
+    try {
+      if (mode === "barcode") {
+        // Create an image element for barcode scanning
+        const img = new Image();
+        img.src = URL.createObjectURL(imageFile);
+        await new Promise((resolve) => {
+          img.onload = resolve;
+        });
+
+        // Initialize barcode reader
+        const codeReader = new BrowserMultiFormatReader();
+        try {
+          // Create a canvas and draw the image
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+
+          // Scan for barcode
+          const result = await codeReader.decodeFromImage(img);
+
+          if (!result) {
+            throw new Error("No barcode found in image");
+          }
+
+          // Get product information from Open Food Facts API
+          const response = await fetch(
+            `https://world.openfoodfacts.org/api/v3/product/${result.text}.json`
+          );
+          const data = await response.json();
+
+          if (data.status === "success" && data.product) {
+            const product = data.product;
+            const nutriments = product.nutriments || {};
+
+            const nutritionInfo = {
+              product_name: product.product_name || "Unknown Product",
+              nutrients: {
+                calories: nutriments["energy-kcal_100g"] || 0,
+                protein: nutriments.proteins_100g || 0,
+                carbs: nutriments.carbohydrates_100g || 0,
+                fats: nutriments.fat_100g || 0,
+              },
+            };
+
+            setScanResult({
+              type: "barcode",
+              name: nutritionInfo.product_name,
+              nutrients: nutritionInfo.nutrients,
+            });
+
+            // Auto-fill the form with nutritional data
+            setFormData((prev) => ({
+              ...prev,
+              calories: nutritionInfo.nutrients.calories || "",
+              protein: nutritionInfo.nutrients.protein || "",
+              carbs: nutritionInfo.nutrients.carbs || "",
+              fats: nutritionInfo.nutrients.fats || "",
+            }));
+          } else {
+            throw new Error("Product not found in database");
+          }
+        } finally {
+          codeReader.reset();
+        }
+      } else {
+        // Handle other modes (photo, recognition) as before
+        const compressedImage = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              const MAX_WIDTH = 800;
+              const MAX_HEIGHT = 800;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, width, height);
+
+              resolve(canvas.toDataURL("image/jpeg", 0.7));
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(imageFile);
+        });
+
+        // Process other modes using Supabase function
+        const imageData = compressedImage.split(",")[1];
+        const { data, error } = await supabase.functions.invoke(
+          "food-recognition",
+          {
+            body: { image: imageData },
+          }
+        );
+
+        if (error) throw error;
+
+        if (data?.predictions) {
+          setScanResult({
+            type: "recognition",
+            predictions: data.predictions,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Processing error:", err);
+      setError(err.message || "Failed to process image. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const switchCamera = async () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    setIsProcessing(true);
+    setFacingMode((current) =>
+      current === "environment" ? "user" : "environment"
+    );
+  };
+
   const startCamera = async () => {
     try {
-      setCameraError(null);
       setError(null);
       console.log("Starting camera...");
 
-      // Check if browser supports getUserMedia
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("Camera API is not supported in this browser");
       }
 
       setShowCamera(true);
-      setIsCameraInitializing(true);
+      setIsProcessing(true);
     } catch (err) {
       console.error("Camera start error:", err);
-      setCameraError(err.message);
+      setError(err.message);
     }
   };
 
@@ -113,7 +247,7 @@ export default function AddMeal() {
       streamRef.current = null;
     }
     setShowCamera(false);
-    setCameraError(null);
+    setError(null);
   };
 
   const capturePhoto = () => {
@@ -127,9 +261,32 @@ export default function AddMeal() {
       const file = new File([blob], "meal-photo.jpg", { type: "image/jpeg" });
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
+
+      // Process the image if in scan mode
+      if (scanMode !== "photo") {
+        processImage(file, scanMode);
+      }
+
       stopCamera();
     }, "image/jpeg");
   };
+
+  const { getRootProps, getInputProps } = useDropzone({
+    accept: {
+      "image/*": [".jpeg", ".jpg", ".png"],
+    },
+    maxFiles: 1,
+    onDrop: (acceptedFiles) => {
+      const file = acceptedFiles[0];
+      setImage(file);
+      setImagePreview(URL.createObjectURL(file));
+
+      // Process the image if in scan mode
+      if (scanMode !== "photo") {
+        processImage(file, scanMode);
+      }
+    },
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -191,18 +348,6 @@ export default function AddMeal() {
     }
   };
 
-  const switchCamera = async () => {
-    if (streamRef.current) {
-      // Stop current stream
-      streamRef.current.getTracks().forEach((track) => track.stop());
-    }
-    setIsCameraInitializing(true);
-    // Toggle facing mode
-    setFacingMode((current) =>
-      current === "environment" ? "user" : "environment"
-    );
-  };
-
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white shadow rounded-lg p-6">
@@ -228,24 +373,9 @@ export default function AddMeal() {
 
           {showCamera ? (
             <div className="relative bg-black rounded-lg overflow-hidden">
-              {isCameraInitializing && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg z-10">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                </div>
-              )}
-              {cameraError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-red-50 rounded-lg z-10">
-                  <div className="text-center p-4">
-                    <p className="text-red-800 mb-2">Camera Error:</p>
-                    <p className="text-red-600">{cameraError}</p>
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="mt-4 bg-red-600 text-white px-4 py-2 rounded-full shadow hover:bg-red-700"
-                    >
-                      Close Camera
-                    </button>
-                  </div>
+              {isProcessing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
                 </div>
               )}
               <video
@@ -258,12 +388,47 @@ export default function AddMeal() {
                   transform: facingMode === "user" ? "scaleX(-1)" : "none",
                 }}
               />
+              <div className="absolute top-4 left-4 z-20 flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setScanMode("photo")}
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    scanMode === "photo"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-800 bg-opacity-50 text-white"
+                  }`}
+                >
+                  Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanMode("barcode")}
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    scanMode === "barcode"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-800 bg-opacity-50 text-white"
+                  }`}
+                >
+                  Barcode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanMode("recognition")}
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    scanMode === "recognition"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-800 bg-opacity-50 text-white"
+                  }`}
+                >
+                  Recognize
+                </button>
+              </div>
               <div className="absolute top-4 right-4 z-20">
                 <button
                   type="button"
                   onClick={switchCamera}
                   className="bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75"
-                  disabled={isCameraInitializing}
+                  disabled={isProcessing}
                 >
                   <ArrowPathIcon className="h-5 w-5" />
                 </button>
@@ -272,10 +437,14 @@ export default function AddMeal() {
                 <button
                   type="button"
                   onClick={capturePhoto}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-full shadow hover:bg-indigo-700"
-                  disabled={isCameraInitializing || cameraError}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-full shadow hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={isProcessing}
                 >
-                  Take Photo
+                  {scanMode === "photo"
+                    ? "Take Photo"
+                    : scanMode === "barcode"
+                    ? "Scan Barcode"
+                    : "Recognize Food"}
                 </button>
                 <button
                   type="button"
@@ -290,7 +459,7 @@ export default function AddMeal() {
             <div className="space-y-4">
               <div
                 {...getRootProps()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500"
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 relative"
               >
                 <input {...getInputProps()} />
                 {imagePreview ? (
@@ -306,6 +475,7 @@ export default function AddMeal() {
                         e.stopPropagation();
                         setImage(null);
                         setImagePreview(null);
+                        setScanResult(null);
                       }}
                       className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
                     >
@@ -317,16 +487,84 @@ export default function AddMeal() {
                     Drag & drop a meal image here, or click to select
                   </p>
                 )}
+                {isProcessing && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  </div>
+                )}
               </div>
 
-              <button
-                type="button"
-                onClick={startCamera}
-                className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <CameraIcon className="h-5 w-5 mr-2" />
-                Take Photo
-              </button>
+              {scanResult && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    {scanResult.type === "barcode"
+                      ? "Product Information"
+                      : "Recognition Results"}
+                  </h3>
+                  {scanResult.type === "barcode" ? (
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        Product: {scanResult.name}
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                        <p>Calories: {scanResult.nutrients.calories}kcal</p>
+                        <p>Protein: {scanResult.nutrients.protein}g</p>
+                        <p>Carbs: {scanResult.nutrients.carbs}g</p>
+                        <p>Fats: {scanResult.nutrients.fats}g</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {scanResult.predictions.map((pred, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span className="text-sm text-gray-600">
+                            {pred.class}
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {(pred.confidence * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanMode("photo");
+                    startCamera();
+                  }}
+                  className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <CameraIcon className="h-5 w-5 mr-2" />
+                  Take Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanMode("barcode");
+                    startCamera();
+                  }}
+                  className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <QrCodeIcon className="h-5 w-5 mr-2" />
+                  Scan Barcode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScanMode("recognition");
+                    startCamera();
+                  }}
+                  className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <SparklesIcon className="h-5 w-5 mr-2" />
+                  Recognize
+                </button>
+              </div>
             </div>
           )}
 
@@ -402,17 +640,10 @@ export default function AddMeal() {
             <div className="rounded-md bg-red-50 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <svg
+                  <XMarkIcon
                     className="h-5 w-5 text-red-400"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                 </div>
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">{error}</h3>
@@ -421,35 +652,20 @@ export default function AddMeal() {
             </div>
           )}
 
-          <div>
+          <div className="flex justify-end">
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
               {loading ? (
-                <svg
-                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-              ) : null}
-              {loading ? "Saving..." : "Save Meal"}
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </div>
+              ) : (
+                "Save Meal"
+              )}
             </button>
           </div>
         </form>
