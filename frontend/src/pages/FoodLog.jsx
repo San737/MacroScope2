@@ -5,12 +5,12 @@ import { format, parseISO } from "date-fns";
 import PropTypes from "prop-types";
 
 const MacroDisplay = ({ label, value, color, unit = "g" }) => (
-  <div className="flex flex-col items-center">
-    <span className={`text-sm font-medium ${color}`}>
+  <div className="flex flex-col items-center text-center">
+    <span className={`text-sm sm:text-base font-medium ${color}`}>
       {value}
       {unit}
     </span>
-    <span className="text-xs text-gray-500">{label}</span>
+    <span className="text-xs sm:text-sm text-gray-500">{label}</span>
   </div>
 );
 
@@ -127,20 +127,22 @@ export default function FoodLog() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Food Log</h1>
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4 sm:py-8">
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-8">
+        Food Log
+      </h1>
 
       {Object.entries(mealsByDay).map(([date, { meals, totals }]) => (
         <div
           key={date}
-          className="mb-8 bg-white rounded-lg shadow overflow-hidden"
+          className="mb-4 sm:mb-8 bg-white rounded-lg shadow overflow-hidden"
         >
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
-              <h2 className="text-lg font-semibold text-gray-900">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b border-gray-200">
+            <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">
                 {format(parseISO(date), "EEEE, MMMM d, yyyy")}
               </h2>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-4 gap-2 sm:gap-4">
                 <MacroDisplay
                   label="Calories"
                   value={totals.calories}
@@ -170,16 +172,16 @@ export default function FoodLog() {
             {meals.map((meal) => (
               <div
                 key={meal.id}
-                className="px-6 py-4 hover:bg-gray-50 transition-colors duration-150"
+                className="px-3 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition-colors duration-150"
               >
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-3 sm:space-y-0">
                   <div className="flex">
                     {meal.image_url && (
-                      <div className="flex-shrink-0 mr-4">
+                      <div className="flex-shrink-0 mr-3 sm:mr-4">
                         <img
                           src={meal.image_url}
                           alt={`${meal.meal_type} meal`}
-                          className="h-24 w-24 rounded-lg object-cover shadow-sm"
+                          className="h-16 w-16 sm:h-24 sm:w-24 rounded-lg object-cover shadow-sm"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src =
@@ -190,21 +192,21 @@ export default function FoodLog() {
                     )}
                     <div>
                       <div className="flex items-center">
-                        <span className="text-xl mr-2">
+                        <span className="text-lg sm:text-xl mr-2">
                           {getMealTypeIcon(meal.meal_type)}
                         </span>
-                        <h3 className="text-lg font-medium text-gray-900 capitalize">
+                        <h3 className="text-base sm:text-lg font-medium text-gray-900 capitalize">
                           {meal.meal_type}
                         </h3>
                       </div>
                       {meal.notes && (
-                        <p className="mt-1 text-sm text-gray-500">
+                        <p className="mt-1 text-xs sm:text-sm text-gray-500 line-clamp-2 sm:line-clamp-none">
                           {meal.notes}
                         </p>
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full sm:w-auto">
                     <MacroDisplay
                       label="Calories"
                       value={meal.calories}
@@ -235,8 +237,8 @@ export default function FoodLog() {
       ))}
 
       {Object.keys(mealsByDay).length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">
+        <div className="text-center py-8 sm:py-12">
+          <p className="text-sm sm:text-base text-gray-500">
             No meals logged yet. Start by adding a meal!
           </p>
         </div>

@@ -5,11 +5,11 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { BrowserMultiFormatReader } from "@zxing/library";
 import {
-  CameraIcon,
   XMarkIcon,
   ArrowPathIcon,
   QrCodeIcon,
   SparklesIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 
 const NUTRITION_DB = {
@@ -871,8 +871,8 @@ export default function AddMeal() {
                   }}
                   className="flex-1 flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  <CameraIcon className="h-5 w-5 mr-2" />
-                  Take Photo
+                  <PencilSquareIcon className="h-5 w-5 mr-2" />
+                  Add Manually
                 </button>
                 <button
                   type="button"
